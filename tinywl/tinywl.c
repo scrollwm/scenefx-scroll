@@ -7,7 +7,7 @@
 #include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/fx/clipped_region.h>
 #include <scenefx/types/fx/corner_location.h>
-#include <scenefx/types/wlr_scene.h>
+#include <scenefx/types/sway_scene.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>

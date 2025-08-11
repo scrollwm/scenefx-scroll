@@ -159,6 +159,6 @@ pkgconfig.generate(
 	lib_scenefx,
 	name: versioned_name,
 	version: meson.project_version(),
-	description: 'Wlroots effects library',
+	description: 'SceneFX with Scroll\'s sway_scene API and scaling features',
 	subdirs: versioned_name,
 )

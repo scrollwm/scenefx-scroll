@@ -2,7 +2,7 @@
 #include <getopt.h>
 #include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/fx/corner_location.h>
-#include <scenefx/types/wlr_scene.h>
+#include <scenefx/types/sway_scene.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

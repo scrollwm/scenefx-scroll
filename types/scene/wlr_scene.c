@@ -2,7 +2,7 @@
 #include <pixman.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <scenefx/types/wlr_scene.h>
+#include <scenefx/types/sway_scene.h>
 #include <string.h>
 #include <wlr/backend.h>
 #include <wlr/render/gles2.h>
@@ -24,7 +24,7 @@
 #include "scenefx/types/fx/clipped_region.h"
 #include "scenefx/types/fx/corner_location.h"
 #include "types/wlr_output.h"
-#include "types/wlr_scene.h"
+#include <types/sway_scene.h>
 #include "util/array.h"
 #include "util/env.h"
 #include "util/time.h"
@@ -39,43 +39,43 @@
 #define DMABUF_FEEDBACK_DEBOUNCE_FRAMES  30
 #define HIGHLIGHT_DAMAGE_FADEOUT_TIME   250
 
-struct wlr_scene_tree *wlr_scene_tree_from_node(struct wlr_scene_node *node) {
-	assert(node->type == WLR_SCENE_NODE_TREE);
-	struct wlr_scene_tree *tree = wl_container_of(node, tree, node);
+struct sway_scene_tree *sway_scene_tree_from_node(struct sway_scene_node *node) {
+	assert(node->type == SWAY_SCENE_NODE_TREE);
+	struct sway_scene_tree *tree = wl_container_of(node, tree, node);
 	return tree;
 }
 
-struct wlr_scene_rect *wlr_scene_rect_from_node(struct wlr_scene_node *node) {
-	assert(node->type == WLR_SCENE_NODE_RECT);
-	struct wlr_scene_rect *rect = wl_container_of(node, rect, node);
+struct sway_scene_rect *sway_scene_rect_from_node(struct sway_scene_node *node) {
+	assert(node->type == SWAY_SCENE_NODE_RECT);
+	struct sway_scene_rect *rect = wl_container_of(node, rect, node);
 	return rect;
 }
 
-struct wlr_scene_optimized_blur *wlr_scene_optimized_blur_from_node(
-		struct wlr_scene_node *node) {
-	assert(node->type == WLR_SCENE_NODE_OPTIMIZED_BLUR);
-	struct wlr_scene_optimized_blur *blur_node =
+struct sway_scene_optimized_blur *sway_scene_optimized_blur_from_node(
+		struct sway_scene_node *node) {
+	assert(node->type == SWAY_SCENE_NODE_OPTIMIZED_BLUR);
+	struct sway_scene_optimized_blur *blur_node =
 		wl_container_of(node, blur_node, node);
 	return blur_node;
 }
 
-struct wlr_scene_buffer *wlr_scene_buffer_from_node(
-		struct wlr_scene_node *node) {
-	assert(node->type == WLR_SCENE_NODE_BUFFER);
-	struct wlr_scene_buffer *buffer = wl_container_of(node, buffer, node);
+struct sway_scene_buffer *sway_scene_buffer_from_node(
+		struct sway_scene_node *node) {
+	assert(node->type == SWAY_SCENE_NODE_BUFFER);
+	struct sway_scene_buffer *buffer = wl_container_of(node, buffer, node);
 	return buffer;
 }
 
-struct wlr_scene_shadow *wlr_scene_shadow_from_node(struct wlr_scene_node *node) {
-	assert(node->type == WLR_SCENE_NODE_SHADOW);
-	struct wlr_scene_shadow *shadow = wl_container_of(node, shadow, node);
+struct sway_scene_shadow *sway_scene_shadow_from_node(struct sway_scene_node *node) {
+	assert(node->type == SWAY_SCENE_NODE_SHADOW);
+	struct sway_scene_shadow *shadow = wl_container_of(node, shadow, node);
 	return shadow;
 }
 
-struct wlr_scene *scene_node_get_root(struct wlr_scene_node *node) {
-	struct wlr_scene_tree *tree;
-	if (node->type == WLR_SCENE_NODE_TREE) {
-		tree = wlr_scene_tree_from_node(node);
+struct sway_scene *scene_node_get_root(struct sway_scene_node *node) {
+	struct sway_scene_tree *tree;
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		tree = sway_scene_tree_from_node(node);
 	} else {
 		tree = node->parent;
 	}
@@ -83,13 +83,13 @@ struct wlr_scene *scene_node_get_root(struct wlr_scene_node *node) {
 	while (tree->node.parent != NULL) {
 		tree = tree->node.parent;
 	}
-	struct wlr_scene *scene = wl_container_of(tree, scene, tree);
+	struct sway_scene *scene = wl_container_of(tree, scene, tree);
 	return scene;
 }
 
-static void scene_node_init(struct wlr_scene_node *node,
-		enum wlr_scene_node_type type, struct wlr_scene_tree *parent) {
-	*node = (struct wlr_scene_node){
+static void scene_node_init(struct sway_scene_node *node,
+		enum sway_scene_node_type type, struct sway_scene_tree *parent) {
+	*node = (struct sway_scene_node){
 		.type = type,
 		.parent = parent,
 		.enabled = true,
@@ -113,12 +113,12 @@ struct highlight_region {
 	struct wl_list link;
 };
 
-static void scene_buffer_set_buffer(struct wlr_scene_buffer *scene_buffer,
+static void scene_buffer_set_buffer(struct sway_scene_buffer *scene_buffer,
 	struct wlr_buffer *buffer);
-static void scene_buffer_set_texture(struct wlr_scene_buffer *scene_buffer,
+static void scene_buffer_set_texture(struct sway_scene_buffer *scene_buffer,
 	struct wlr_texture *texture);
 
-void wlr_scene_node_destroy(struct wlr_scene_node *node) {
+void sway_scene_node_destroy(struct sway_scene_node *node) {
 	if (node == NULL) {
 		return;
 	}
@@ -129,15 +129,15 @@ void wlr_scene_node_destroy(struct wlr_scene_node *node) {
 	wl_signal_emit_mutable(&node->events.destroy, NULL);
 	wlr_addon_set_finish(&node->addons);
 
-	wlr_scene_node_set_enabled(node, false);
+	sway_scene_node_set_enabled(node, false);
 
-	struct wlr_scene *scene = scene_node_get_root(node);
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	struct sway_scene *scene = scene_node_get_root(node);
+	if (node->type == SWAY_SCENE_NODE_BUFFER) {
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 
 		uint64_t active = scene_buffer->active_outputs;
 		if (active) {
-			struct wlr_scene_output *scene_output;
+			struct sway_scene_output *scene_output;
 			wl_list_for_each(scene_output, &scene->outputs, link) {
 				if (active & (1ull << scene_output->index)) {
 					wl_signal_emit_mutable(&scene_buffer->events.output_leave,
@@ -156,14 +156,14 @@ void wlr_scene_node_destroy(struct wlr_scene_node *node) {
 		assert(wl_list_empty(&scene_buffer->events.outputs_update.listener_list));
 		assert(wl_list_empty(&scene_buffer->events.output_sample.listener_list));
 		assert(wl_list_empty(&scene_buffer->events.frame_done.listener_list));
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
+	} else if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
 
 		if (scene_tree == &scene->tree) {
 			assert(!node->parent);
-			struct wlr_scene_output *scene_output, *scene_output_tmp;
+			struct sway_scene_output *scene_output, *scene_output_tmp;
 			wl_list_for_each_safe(scene_output, scene_output_tmp, &scene->outputs, link) {
-				wlr_scene_output_destroy(scene_output);
+				sway_scene_output_destroy(scene_output);
 			}
 
 			wl_list_remove(&scene->linux_dmabuf_v1_destroy.link);
@@ -173,10 +173,10 @@ void wlr_scene_node_destroy(struct wlr_scene_node *node) {
 			assert(node->parent);
 		}
 
-		struct wlr_scene_node *child, *child_tmp;
+		struct sway_scene_node *child, *child_tmp;
 		wl_list_for_each_safe(child, child_tmp,
 				&scene_tree->children, link) {
-			wlr_scene_node_destroy(child);
+			sway_scene_node_destroy(child);
 		}
 	}
 
@@ -187,15 +187,15 @@ void wlr_scene_node_destroy(struct wlr_scene_node *node) {
 	free(node);
 }
 
-static void scene_tree_init(struct wlr_scene_tree *tree,
-		struct wlr_scene_tree *parent) {
-	*tree = (struct wlr_scene_tree){0};
-	scene_node_init(&tree->node, WLR_SCENE_NODE_TREE, parent);
+static void scene_tree_init(struct sway_scene_tree *tree,
+		struct sway_scene_tree *parent) {
+	*tree = (struct sway_scene_tree){0};
+	scene_node_init(&tree->node, SWAY_SCENE_NODE_TREE, parent);
 	wl_list_init(&tree->children);
 }
 
-struct wlr_scene *wlr_scene_create(void) {
-	struct wlr_scene *scene = calloc(1, sizeof(*scene));
+struct sway_scene *sway_scene_create(void) {
+	struct sway_scene *scene = calloc(1, sizeof(*scene));
 	if (scene == NULL) {
 		return NULL;
 	}
@@ -214,7 +214,7 @@ struct wlr_scene *wlr_scene_create(void) {
 		NULL
 	};
 
-	scene->debug_damage_option = env_parse_switch("WLR_SCENE_DEBUG_DAMAGE", debug_damage_options);
+	scene->debug_damage_option = env_parse_switch("SWAY_SCENE_DEBUG_DAMAGE", debug_damage_options);
 	scene->direct_scanout = !env_parse_bool("WLR_SCENE_DISABLE_DIRECT_SCANOUT");
 	scene->calculate_visibility = !env_parse_bool("WLR_SCENE_DISABLE_VISIBILITY");
 	scene->highlight_transparent_region = env_parse_bool("WLR_SCENE_HIGHLIGHT_TRANSPARENT_REGION");
@@ -224,10 +224,10 @@ struct wlr_scene *wlr_scene_create(void) {
 	return scene;
 }
 
-struct wlr_scene_tree *wlr_scene_tree_create(struct wlr_scene_tree *parent) {
+struct sway_scene_tree *sway_scene_tree_create(struct sway_scene_tree *parent) {
 	assert(parent);
 
-	struct wlr_scene_tree *tree = calloc(1, sizeof(*tree));
+	struct sway_scene_tree *tree = calloc(1, sizeof(*tree));
 	if (tree == NULL) {
 		return NULL;
 	}
@@ -236,31 +236,31 @@ struct wlr_scene_tree *wlr_scene_tree_create(struct wlr_scene_tree *parent) {
 	return tree;
 }
 
-static void scene_node_get_size(struct wlr_scene_node *node, int *lx, int *ly);
+static void scene_node_get_size(struct sway_scene_node *node, int *lx, int *ly);
 
-typedef bool (*scene_node_box_iterator_func_t)(struct wlr_scene_node *node,
+typedef bool (*scene_node_box_iterator_func_t)(struct sway_scene_node *node,
 	int sx, int sy, void *data);
 
-static bool _scene_nodes_in_box(struct wlr_scene_node *node, struct wlr_box *box,
+static bool _scene_nodes_in_box(struct sway_scene_node *node, struct wlr_box *box,
 		scene_node_box_iterator_func_t iterator, void *user_data, int lx, int ly) {
 	if (!node->enabled) {
 		return false;
 	}
 
 	switch (node->type) {
-	case WLR_SCENE_NODE_TREE:;
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+	case SWAY_SCENE_NODE_TREE:;
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each_reverse(child, &scene_tree->children, link) {
 			if (_scene_nodes_in_box(child, box, iterator, user_data, lx + child->x, ly + child->y)) {
 				return true;
 			}
 		}
 		break;
-	case WLR_SCENE_NODE_OPTIMIZED_BLUR:;
-	case WLR_SCENE_NODE_RECT:
-	case WLR_SCENE_NODE_SHADOW:
-	case WLR_SCENE_NODE_BUFFER:;
+	case SWAY_SCENE_NODE_OPTIMIZED_BLUR:;
+	case SWAY_SCENE_NODE_RECT:
+	case SWAY_SCENE_NODE_SHADOW:
+	case SWAY_SCENE_NODE_BUFFER:;
 		struct wlr_box node_box = { .x = lx, .y = ly };
 		scene_node_get_size(node, &node_box.width, &node_box.height);
 
@@ -274,21 +274,21 @@ static bool _scene_nodes_in_box(struct wlr_scene_node *node, struct wlr_box *box
 	return false;
 }
 
-static bool scene_nodes_in_box(struct wlr_scene_node *node, struct wlr_box *box,
+static bool scene_nodes_in_box(struct sway_scene_node *node, struct wlr_box *box,
 		scene_node_box_iterator_func_t iterator, void *user_data) {
 	int x, y;
-	wlr_scene_node_coords(node, &x, &y);
+	sway_scene_node_coords(node, &x, &y);
 
 	return _scene_nodes_in_box(node, box, iterator, user_data, x, y);
 }
 
-static void scene_node_opaque_region(struct wlr_scene_node *node, int x, int y,
+static void scene_node_opaque_region(struct sway_scene_node *node, int x, int y,
 		pixman_region32_t *opaque) {
 	int width, height;
 	scene_node_get_size(node, &width, &height);
 
-	if (node->type == WLR_SCENE_NODE_RECT) {
-		struct wlr_scene_rect *scene_rect = wlr_scene_rect_from_node(node);
+	if (node->type == SWAY_SCENE_NODE_RECT) {
+		struct sway_scene_rect *scene_rect = sway_scene_rect_from_node(node);
 		if (scene_rect->corner_radius > 0) {
 			// TODO: this is incorrect
 			return;
@@ -309,11 +309,11 @@ static void scene_node_opaque_region(struct wlr_scene_node *node, int x, int y,
 			pixman_region32_fini(&clipped_region);
 			return;
 		}
-	} else if (node->type == WLR_SCENE_NODE_SHADOW) {
+	} else if (node->type == SWAY_SCENE_NODE_SHADOW) {
 		// TODO: test & handle case of blur sigma = 0 and color[3] = 1?
 		return;
-	} else if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	} else if (node->type == SWAY_SCENE_NODE_BUFFER) {
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 
 		if (!scene_buffer->buffer) {
 			return;
@@ -334,7 +334,7 @@ static void scene_node_opaque_region(struct wlr_scene_node *node, int x, int y,
 			pixman_region32_translate(opaque, x, y);
 			return;
 		}
-	} else if (node->type == WLR_SCENE_NODE_OPTIMIZED_BLUR) {
+	} else if (node->type == SWAY_SCENE_NODE_OPTIMIZED_BLUR) {
 		// Always transparent
 		return;
 	}
@@ -383,7 +383,7 @@ struct render_data {
 	struct wlr_box logical;
 	int trans_width, trans_height;
 
-	struct wlr_scene_output *output;
+	struct sway_scene_output *output;
 
 	struct fx_gles_render_pass *render_pass;
 	pixman_region32_t damage;
@@ -423,7 +423,7 @@ static void transform_output_box(struct wlr_box *box, const struct render_data *
 	wlr_box_transform(box, box, transform, data->trans_width, data->trans_height);
 }
 
-static void scene_output_damage(struct wlr_scene_output *scene_output,
+static void scene_output_damage(struct sway_scene_output *scene_output,
 		const pixman_region32_t *damage) {
 	struct wlr_output *output = scene_output->output;
 
@@ -442,7 +442,7 @@ static void scene_output_damage(struct wlr_scene_output *scene_output,
 	pixman_region32_fini(&clipped);
 }
 
-static void scene_output_damage_whole(struct wlr_scene_output *scene_output) {
+static void scene_output_damage_whole(struct sway_scene_output *scene_output) {
 	struct wlr_output *output = scene_output->output;
 
 	pixman_region32_t damage;
@@ -451,12 +451,12 @@ static void scene_output_damage_whole(struct wlr_scene_output *scene_output) {
 	pixman_region32_fini(&damage);
 }
 
-static void scene_damage_outputs(struct wlr_scene *scene, pixman_region32_t *damage) {
+static void scene_damage_outputs(struct sway_scene *scene, pixman_region32_t *damage) {
 	if (pixman_region32_empty(damage)) {
 		return;
 	}
 
-	struct wlr_scene_output *scene_output;
+	struct sway_scene_output *scene_output;
 	wl_list_for_each(scene_output, &scene->outputs, link) {
 		pixman_region32_t output_damage;
 		pixman_region32_init(&output_damage);
@@ -470,17 +470,17 @@ static void scene_damage_outputs(struct wlr_scene *scene, pixman_region32_t *dam
 	}
 }
 
-static void update_node_update_outputs(struct wlr_scene_node *node,
-		struct wl_list *outputs, struct wlr_scene_output *ignore,
-		struct wlr_scene_output *force) {
-	if (node->type != WLR_SCENE_NODE_BUFFER) {
+static void update_node_update_outputs(struct sway_scene_node *node,
+		struct wl_list *outputs, struct sway_scene_output *ignore,
+		struct sway_scene_output *force) {
+	if (node->type != SWAY_SCENE_NODE_BUFFER) {
 		return;
 	}
 
-	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 
 	uint32_t largest_overlap = 0;
-	struct wlr_scene_output *old_primary_output = scene_buffer->primary_output;
+	struct sway_scene_output *old_primary_output = scene_buffer->primary_output;
 	scene_buffer->primary_output = NULL;
 
 	size_t count = 0;
@@ -492,7 +492,7 @@ static void update_node_update_outputs(struct wlr_scene_node *node,
 	// This ensures that the enter/leave signals can rely on the primary output
 	// to have a reasonable value. Otherwise, they may get a value that's in
 	// the middle of a calculation.
-	struct wlr_scene_output *scene_output;
+	struct sway_scene_output *scene_output;
 	wl_list_for_each(scene_output, outputs, link) {
 		if (scene_output == ignore) {
 			continue;
@@ -559,7 +559,7 @@ static void update_node_update_outputs(struct wlr_scene_node *node,
 		return;
 	}
 
-	struct wlr_scene_output *outputs_array[64];
+	struct sway_scene_output *outputs_array[64];
 	struct wlr_scene_outputs_update_event event = {
 		.active = outputs_array,
 		.size = count,
@@ -580,13 +580,13 @@ static void update_node_update_outputs(struct wlr_scene_node *node,
 
 #if WLR_HAS_XWAYLAND
 static struct wlr_xwayland_surface *scene_node_try_get_managed_xwayland_surface(
-		struct wlr_scene_node *node) {
-	if (node->type != WLR_SCENE_NODE_BUFFER) {
+		struct sway_scene_node *node) {
+	if (node->type != SWAY_SCENE_NODE_BUFFER) {
 		return NULL;
 	}
 
-	struct wlr_scene_buffer *buffer_node = wlr_scene_buffer_from_node(node);
-	struct wlr_scene_surface *surface_node = wlr_scene_surface_try_from_buffer(buffer_node);
+	struct sway_scene_buffer *buffer_node = sway_scene_buffer_from_node(node);
+	struct sway_scene_surface *surface_node = sway_scene_surface_try_from_buffer(buffer_node);
 	if (!surface_node) {
 		return NULL;
 	}
@@ -600,7 +600,7 @@ static struct wlr_xwayland_surface *scene_node_try_get_managed_xwayland_surface(
 	return xwayland_surface;
 }
 
-static void restack_xwayland_surface(struct wlr_scene_node *node,
+static void restack_xwayland_surface(struct sway_scene_node *node,
 		struct wlr_box *box, struct scene_update_data *data) {
 	struct wlr_xwayland_surface *xwayland_surface =
 		scene_node_try_get_managed_xwayland_surface(node);
@@ -621,10 +621,10 @@ static void restack_xwayland_surface(struct wlr_scene_node *node,
 	data->restack_above = xwayland_surface;
 }
 
-static void restack_xwayland_surface_below(struct wlr_scene_node *node) {
-	if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+static void restack_xwayland_surface_below(struct sway_scene_node *node) {
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			restack_xwayland_surface_below(child);
 		}
@@ -641,12 +641,12 @@ static void restack_xwayland_surface_below(struct wlr_scene_node *node) {
 }
 #endif
 
-static bool scene_node_update_iterator(struct wlr_scene_node *node,
+static bool scene_node_update_iterator(struct sway_scene_node *node,
 		int lx, int ly, void *_data) {
 	struct scene_update_data *data = _data;
 
-	if (node->type == WLR_SCENE_NODE_OPTIMIZED_BLUR) {
-		struct wlr_scene_optimized_blur *scene_blur = wlr_scene_optimized_blur_from_node(node);
+	if (node->type == SWAY_SCENE_NODE_OPTIMIZED_BLUR) {
+		struct sway_scene_optimized_blur *scene_blur = sway_scene_optimized_blur_from_node(node);
 		if (scene_blur->dirty) {
 			data->optimized_blur_dirty = true;
 			// Restore the visible region back to default for the nodes below
@@ -680,15 +680,15 @@ static bool scene_node_update_iterator(struct wlr_scene_node *node,
 	return false;
 }
 
-static void scene_node_visibility(struct wlr_scene_node *node,
+static void scene_node_visibility(struct sway_scene_node *node,
 		pixman_region32_t *visible) {
 	if (!node->enabled) {
 		return;
 	}
 
-	if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			scene_node_visibility(child, visible);
 		}
@@ -698,15 +698,15 @@ static void scene_node_visibility(struct wlr_scene_node *node,
 	pixman_region32_union(visible, visible, &node->visible);
 }
 
-static void scene_node_bounds(struct wlr_scene_node *node,
+static void scene_node_bounds(struct sway_scene_node *node,
 		int x, int y, pixman_region32_t *visible) {
 	if (!node->enabled) {
 		return;
 	}
 
-	if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			scene_node_bounds(child, x + child->x, y + child->y, visible);
 		}
@@ -718,7 +718,7 @@ static void scene_node_bounds(struct wlr_scene_node *node,
 	pixman_region32_union_rect(visible, visible, x, y, width, height);
 }
 
-static void scene_update_region(struct wlr_scene *scene,
+static void scene_update_region(struct sway_scene *scene,
 		pixman_region32_t *update_region) {
 	pixman_region32_t visible;
 	pixman_region32_init(&visible);
@@ -745,12 +745,12 @@ static void scene_update_region(struct wlr_scene *scene,
 	pixman_region32_fini(&visible);
 }
 
-static void scene_node_update(struct wlr_scene_node *node,
+static void scene_node_update(struct sway_scene_node *node,
 		pixman_region32_t *damage) {
-	struct wlr_scene *scene = scene_node_get_root(node);
+	struct sway_scene *scene = scene_node_get_root(node);
 
 	int x, y;
-	if (!wlr_scene_node_coords(node, &x, &y)) {
+	if (!sway_scene_node_coords(node, &x, &y)) {
 #if WLR_HAS_XWAYLAND
 		restack_xwayland_surface_below(node);
 #endif
@@ -783,16 +783,16 @@ static void scene_node_update(struct wlr_scene_node *node,
 	pixman_region32_fini(damage);
 }
 
-struct wlr_scene_rect *wlr_scene_rect_create(struct wlr_scene_tree *parent,
+struct sway_scene_rect *sway_scene_rect_create(struct sway_scene_tree *parent,
 		int width, int height, const float color[static 4]) {
 	assert(parent);
 	assert(width >= 0 && height >= 0);
 
-	struct wlr_scene_rect *scene_rect = calloc(1, sizeof(*scene_rect));
+	struct sway_scene_rect *scene_rect = calloc(1, sizeof(*scene_rect));
 	if (scene_rect == NULL) {
 		return NULL;
 	}
-	scene_node_init(&scene_rect->node, WLR_SCENE_NODE_RECT, parent);
+	scene_node_init(&scene_rect->node, SWAY_SCENE_NODE_RECT, parent);
 
 	scene_rect->width = width;
 	scene_rect->height = height;
@@ -809,7 +809,7 @@ struct wlr_scene_rect *wlr_scene_rect_create(struct wlr_scene_tree *parent,
 	return scene_rect;
 }
 
-void wlr_scene_rect_set_size(struct wlr_scene_rect *rect, int width, int height) {
+void sway_scene_rect_set_size(struct sway_scene_rect *rect, int width, int height) {
 	if (rect->width == width && rect->height == height) {
 		return;
 	}
@@ -821,7 +821,7 @@ void wlr_scene_rect_set_size(struct wlr_scene_rect *rect, int width, int height)
 	scene_node_update(&rect->node, NULL);
 }
 
-void wlr_scene_rect_set_color(struct wlr_scene_rect *rect, const float color[static 4]) {
+void sway_scene_rect_set_color(struct sway_scene_rect *rect, const float color[static 4]) {
 	if (memcmp(rect->color, color, sizeof(rect->color)) == 0) {
 		return;
 	}
@@ -830,7 +830,7 @@ void wlr_scene_rect_set_color(struct wlr_scene_rect *rect, const float color[sta
 	scene_node_update(&rect->node, NULL);
 }
 
-void wlr_scene_rect_set_backdrop_blur(struct wlr_scene_rect *rect,
+void sway_scene_rect_set_backdrop_blur(struct sway_scene_rect *rect,
 		bool enabled) {
 	if (rect->backdrop_blur == enabled) {
 		return;
@@ -839,7 +839,7 @@ void wlr_scene_rect_set_backdrop_blur(struct wlr_scene_rect *rect,
 	scene_node_update(&rect->node, NULL);
 }
 
-void wlr_scene_rect_set_backdrop_blur_optimized(struct wlr_scene_rect *rect,
+void sway_scene_rect_set_backdrop_blur_optimized(struct sway_scene_rect *rect,
 		bool enabled) {
 	if (rect->backdrop_blur_optimized == enabled) {
 		return;
@@ -850,7 +850,7 @@ void wlr_scene_rect_set_backdrop_blur_optimized(struct wlr_scene_rect *rect,
 
 static void scene_buffer_handle_buffer_release(struct wl_listener *listener,
 		void *data) {
-	struct wlr_scene_buffer *scene_buffer =
+	struct sway_scene_buffer *scene_buffer =
 		wl_container_of(listener, scene_buffer, buffer_release);
 
 	scene_buffer->buffer = NULL;
@@ -858,7 +858,7 @@ static void scene_buffer_handle_buffer_release(struct wl_listener *listener,
 	wl_list_init(&scene_buffer->buffer_release.link);
 }
 
-static void scene_buffer_set_buffer(struct wlr_scene_buffer *scene_buffer,
+static void scene_buffer_set_buffer(struct sway_scene_buffer *scene_buffer,
 		struct wlr_buffer *buffer) {
 	wl_list_remove(&scene_buffer->buffer_release.link);
 	wl_list_init(&scene_buffer->buffer_release.link);
@@ -886,11 +886,11 @@ static void scene_buffer_set_buffer(struct wlr_scene_buffer *scene_buffer,
 
 static void scene_buffer_handle_renderer_destroy(struct wl_listener *listener,
 		void *data) {
-	struct wlr_scene_buffer *scene_buffer = wl_container_of(listener, scene_buffer, renderer_destroy);
+	struct sway_scene_buffer *scene_buffer = wl_container_of(listener, scene_buffer, renderer_destroy);
 	scene_buffer_set_texture(scene_buffer, NULL);
 }
 
-static void scene_buffer_set_texture(struct wlr_scene_buffer *scene_buffer,
+static void scene_buffer_set_texture(struct sway_scene_buffer *scene_buffer,
 		struct wlr_texture *texture) {
 	wl_list_remove(&scene_buffer->renderer_destroy.link);
 	wlr_texture_destroy(scene_buffer->texture);
@@ -904,7 +904,7 @@ static void scene_buffer_set_texture(struct wlr_scene_buffer *scene_buffer,
 	}
 }
 
-static void scene_buffer_set_wait_timeline(struct wlr_scene_buffer *scene_buffer,
+static void scene_buffer_set_wait_timeline(struct sway_scene_buffer *scene_buffer,
 		struct wlr_drm_syncobj_timeline *timeline, uint64_t point) {
 	wlr_drm_syncobj_timeline_unref(scene_buffer->wait_timeline);
 	if (timeline != NULL) {
@@ -916,7 +916,7 @@ static void scene_buffer_set_wait_timeline(struct wlr_scene_buffer *scene_buffer
 	}
 }
 
-void wlr_scene_rect_set_corner_radius(struct wlr_scene_rect *rect, int corner_radius,
+void sway_scene_rect_set_corner_radius(struct sway_scene_rect *rect, int corner_radius,
 		enum corner_location corners) {
 	if (rect->corner_radius == corner_radius && rect->corners == corners) {
 		return;
@@ -927,7 +927,7 @@ void wlr_scene_rect_set_corner_radius(struct wlr_scene_rect *rect, int corner_ra
 	scene_node_update(&rect->node, NULL);
 }
 
-void wlr_scene_rect_set_clipped_region(struct wlr_scene_rect *rect,
+void wlr_scene_rect_set_clipped_region(struct sway_scene_rect *rect,
 		struct clipped_region clipped_region) {
 	if (rect->clipped_region.corner_radius == clipped_region.corner_radius &&
 			rect->clipped_region.corners == clipped_region.corners &&
@@ -943,15 +943,15 @@ void wlr_scene_rect_set_clipped_region(struct wlr_scene_rect *rect,
 	scene_node_update(&rect->node, NULL);
 }
 
-struct wlr_scene_shadow *wlr_scene_shadow_create(struct wlr_scene_tree *parent,
+struct sway_scene_shadow *sway_scene_shadow_create(struct sway_scene_tree *parent,
 		int width, int height, int corner_radius, float blur_sigma,
 		const float color [static 4]) {
-	struct wlr_scene_shadow *scene_shadow = calloc(1, sizeof(*scene_shadow));
+	struct sway_scene_shadow *scene_shadow = calloc(1, sizeof(*scene_shadow));
 	if (scene_shadow == NULL) {
 		return NULL;
 	}
 	assert(parent);
-	scene_node_init(&scene_shadow->node, WLR_SCENE_NODE_SHADOW, parent);
+	scene_node_init(&scene_shadow->node, SWAY_SCENE_NODE_SHADOW, parent);
 
 	scene_shadow->width = width;
 	scene_shadow->height = height;
@@ -965,7 +965,7 @@ struct wlr_scene_shadow *wlr_scene_shadow_create(struct wlr_scene_tree *parent,
 	return scene_shadow;
 }
 
-void wlr_scene_shadow_set_size(struct wlr_scene_shadow *shadow, int width, int height) {
+void sway_scene_shadow_set_size(struct sway_scene_shadow *shadow, int width, int height) {
 	if (shadow->width == width && shadow->height == height) {
 		return;
 	}
@@ -975,7 +975,7 @@ void wlr_scene_shadow_set_size(struct wlr_scene_shadow *shadow, int width, int h
 	scene_node_update(&shadow->node, NULL);
 }
 
-void wlr_scene_shadow_set_corner_radius(struct wlr_scene_shadow *shadow, int corner_radius) {
+void wlr_scene_shadow_set_corner_radius(struct sway_scene_shadow *shadow, int corner_radius) {
 	if (shadow->corner_radius == corner_radius) {
 		return;
 	}
@@ -984,7 +984,7 @@ void wlr_scene_shadow_set_corner_radius(struct wlr_scene_shadow *shadow, int cor
 	scene_node_update(&shadow->node, NULL);
 }
 
-void wlr_scene_shadow_set_blur_sigma(struct wlr_scene_shadow *shadow, float blur_sigma) {
+void wlr_scene_shadow_set_blur_sigma(struct sway_scene_shadow *shadow, float blur_sigma) {
 	if (shadow->blur_sigma == blur_sigma) {
 		return;
 	}
@@ -993,7 +993,7 @@ void wlr_scene_shadow_set_blur_sigma(struct wlr_scene_shadow *shadow, float blur
 	scene_node_update(&shadow->node, NULL);
 }
 
-void wlr_scene_shadow_set_color(struct wlr_scene_shadow *shadow, const float color[static 4]) {
+void sway_scene_shadow_set_color(struct sway_scene_shadow *shadow, const float color[static 4]) {
 	if (memcmp(shadow->color, color, sizeof(shadow->color)) == 0) {
 		return;
 	}
@@ -1002,7 +1002,7 @@ void wlr_scene_shadow_set_color(struct wlr_scene_shadow *shadow, const float col
 	scene_node_update(&shadow->node, NULL);
 }
 
-void wlr_scene_shadow_set_clipped_region(struct wlr_scene_shadow *shadow,
+void wlr_scene_shadow_set_clipped_region(struct sway_scene_shadow *shadow,
 		struct clipped_region clipped_region) {
 	if (shadow->clipped_region.corner_radius == clipped_region.corner_radius &&
 			shadow->clipped_region.corners == clipped_region.corners &&
@@ -1018,20 +1018,20 @@ void wlr_scene_shadow_set_clipped_region(struct wlr_scene_shadow *shadow,
 	scene_node_update(&shadow->node, NULL);
 }
 
-static void mark_all_optimized_blur_nodes_dirty(struct wlr_scene_node *node) {
-	if (node->type == WLR_SCENE_NODE_OPTIMIZED_BLUR) {
-		struct wlr_scene_optimized_blur *scene_blur = wlr_scene_optimized_blur_from_node(node);
-		wlr_scene_optimized_blur_mark_dirty(scene_blur);
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+static void mark_all_optimized_blur_nodes_dirty(struct sway_scene_node *node) {
+	if (node->type == SWAY_SCENE_NODE_OPTIMIZED_BLUR) {
+		struct sway_scene_optimized_blur *scene_blur = sway_scene_optimized_blur_from_node(node);
+		sway_scene_optimized_blur_mark_dirty(scene_blur);
+	} else if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			mark_all_optimized_blur_nodes_dirty(child);
 		}
 	}
 }
 
-void wlr_scene_set_blur_data(struct wlr_scene *scene, int num_passes,
+void sway_scene_set_blur_data(struct sway_scene *scene, int num_passes,
 		int radius, float noise, float brightness, float contrast, float saturation) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->num_passes == num_passes
@@ -1054,7 +1054,7 @@ void wlr_scene_set_blur_data(struct wlr_scene *scene, int num_passes,
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-void wlr_scene_set_blur_num_passes(struct wlr_scene *scene, int num_passes) {
+void wlr_scene_set_blur_num_passes(struct sway_scene *scene, int num_passes) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->num_passes == num_passes) {
 		return;
@@ -1064,7 +1064,7 @@ void wlr_scene_set_blur_num_passes(struct wlr_scene *scene, int num_passes) {
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-void wlr_scene_set_blur_radius(struct wlr_scene *scene, int radius) {
+void sway_scene_set_blur_radius(struct sway_scene *scene, int radius) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->radius == radius) {
 		return;
@@ -1074,7 +1074,7 @@ void wlr_scene_set_blur_radius(struct wlr_scene *scene, int radius) {
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-void wlr_scene_set_blur_noise(struct wlr_scene *scene, float noise) {
+void sway_scene_set_blur_noise(struct sway_scene *scene, float noise) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->noise == noise) {
 		return;
@@ -1084,7 +1084,7 @@ void wlr_scene_set_blur_noise(struct wlr_scene *scene, float noise) {
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-void wlr_scene_set_blur_brightness(struct wlr_scene *scene, float brightness) {
+void sway_scene_set_blur_brightness(struct sway_scene *scene, float brightness) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->brightness == brightness) {
 		return;
@@ -1094,7 +1094,7 @@ void wlr_scene_set_blur_brightness(struct wlr_scene *scene, float brightness) {
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-void wlr_scene_set_blur_contrast(struct wlr_scene *scene, float contrast) {
+void sway_scene_set_blur_contrast(struct sway_scene *scene, float contrast) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->contrast == contrast) {
 		return;
@@ -1104,7 +1104,7 @@ void wlr_scene_set_blur_contrast(struct wlr_scene *scene, float contrast) {
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-void wlr_scene_set_blur_saturation(struct wlr_scene *scene, float saturation) {
+void sway_scene_set_blur_saturation(struct sway_scene *scene, float saturation) {
 	struct blur_data *buff_data = &scene->blur_data;
 	if (buff_data->saturation == saturation) {
 		return;
@@ -1114,14 +1114,14 @@ void wlr_scene_set_blur_saturation(struct wlr_scene *scene, float saturation) {
 	scene_node_update(&scene->tree.node, NULL);
 }
 
-struct wlr_scene_optimized_blur *wlr_scene_optimized_blur_create(
-		struct wlr_scene_tree *parent, int width, int height) {
-	struct wlr_scene_optimized_blur *scene_blur = calloc(1, sizeof(*scene_blur));
+struct sway_scene_optimized_blur *sway_scene_optimized_blur_create(
+		struct sway_scene_tree *parent, int width, int height) {
+	struct sway_scene_optimized_blur *scene_blur = calloc(1, sizeof(*scene_blur));
 	if (scene_blur == NULL) {
 		return NULL;
 	}
 	assert(parent);
-	scene_node_init(&scene_blur->node, WLR_SCENE_NODE_OPTIMIZED_BLUR, parent);
+	scene_node_init(&scene_blur->node, SWAY_SCENE_NODE_OPTIMIZED_BLUR, parent);
 
 	scene_blur->width = width;
 	scene_blur->height = height;
@@ -1132,7 +1132,7 @@ struct wlr_scene_optimized_blur *wlr_scene_optimized_blur_create(
 	return scene_blur;
 }
 
-void wlr_scene_optimized_blur_set_size(struct wlr_scene_optimized_blur *blur_node,
+void sway_scene_optimized_blur_set_size(struct sway_scene_optimized_blur *blur_node,
 		int width, int height) {
 	assert(blur_node);
 	if (blur_node->width == width && blur_node->height == height) {
@@ -1142,10 +1142,10 @@ void wlr_scene_optimized_blur_set_size(struct wlr_scene_optimized_blur *blur_nod
 	blur_node->width = width;
 	blur_node->height = height;
 
-	wlr_scene_optimized_blur_mark_dirty(blur_node);
+	sway_scene_optimized_blur_mark_dirty(blur_node);
 }
 
-void wlr_scene_optimized_blur_mark_dirty(struct wlr_scene_optimized_blur *blur_node) {
+void sway_scene_optimized_blur_mark_dirty(struct sway_scene_optimized_blur *blur_node) {
 	// Skip re-rendering the optimized blur if the blur node is disabled
 	if (blur_node && !blur_node->node.enabled) {
 		return;
@@ -1156,14 +1156,14 @@ void wlr_scene_optimized_blur_mark_dirty(struct wlr_scene_optimized_blur *blur_n
 	scene_node_update(&blur_node->node, NULL);
 }
 
-struct wlr_scene_buffer *wlr_scene_buffer_create(struct wlr_scene_tree *parent,
+struct sway_scene_buffer *sway_scene_buffer_create(struct sway_scene_tree *parent,
 		struct wlr_buffer *buffer) {
-	struct wlr_scene_buffer *scene_buffer = calloc(1, sizeof(*scene_buffer));
+	struct sway_scene_buffer *scene_buffer = calloc(1, sizeof(*scene_buffer));
 	if (scene_buffer == NULL) {
 		return NULL;
 	}
 	assert(parent);
-	scene_node_init(&scene_buffer->node, WLR_SCENE_NODE_BUFFER, parent);
+	scene_node_init(&scene_buffer->node, SWAY_SCENE_NODE_BUFFER, parent);
 
 	wl_signal_init(&scene_buffer->events.outputs_update);
 	wl_signal_init(&scene_buffer->events.output_enter);
@@ -1188,9 +1188,9 @@ struct wlr_scene_buffer *wlr_scene_buffer_create(struct wlr_scene_tree *parent,
 	return scene_buffer;
 }
 
-void wlr_scene_buffer_set_buffer_with_options(struct wlr_scene_buffer *scene_buffer,
-		struct wlr_buffer *buffer, const struct wlr_scene_buffer_set_buffer_options *options) {
-	const struct wlr_scene_buffer_set_buffer_options default_options = {0};
+void sway_scene_buffer_set_buffer_with_options(struct sway_scene_buffer *scene_buffer,
+		struct wlr_buffer *buffer, const struct sway_scene_buffer_set_buffer_options *options) {
+	const struct sway_scene_buffer_set_buffer_options default_options = {0};
 	if (options == NULL) {
 		options = &default_options;
 	}
@@ -1252,7 +1252,7 @@ void wlr_scene_buffer_set_buffer_with_options(struct wlr_scene_buffer *scene_buf
 	}
 
 	int lx, ly;
-	if (!wlr_scene_node_coords(&scene_buffer->node, &lx, &ly)) {
+	if (!sway_scene_node_coords(&scene_buffer->node, &lx, &ly)) {
 		return;
 	}
 
@@ -1291,8 +1291,8 @@ void wlr_scene_buffer_set_buffer_with_options(struct wlr_scene_buffer *scene_buf
 		box.x, box.y, box.width, box.height);
 	pixman_region32_translate(&trans_damage, -box.x, -box.y);
 
-	struct wlr_scene *scene = scene_node_get_root(&scene_buffer->node);
-	struct wlr_scene_output *scene_output;
+	struct sway_scene *scene = scene_node_get_root(&scene_buffer->node);
+	struct sway_scene_output *scene_output;
 	wl_list_for_each(scene_output, &scene->outputs, link) {
 		float output_scale = scene_output->output->scale;
 		float output_scale_x = output_scale * scale_x;
@@ -1341,20 +1341,20 @@ void wlr_scene_buffer_set_buffer_with_options(struct wlr_scene_buffer *scene_buf
 	pixman_region32_fini(&fallback_damage);
 }
 
-void wlr_scene_buffer_set_buffer_with_damage(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_buffer_with_damage(struct sway_scene_buffer *scene_buffer,
 		struct wlr_buffer *buffer, const pixman_region32_t *damage) {
-	const struct wlr_scene_buffer_set_buffer_options options = {
+	const struct sway_scene_buffer_set_buffer_options options = {
 		.damage = damage,
 	};
-	wlr_scene_buffer_set_buffer_with_options(scene_buffer, buffer, &options);
+	sway_scene_buffer_set_buffer_with_options(scene_buffer, buffer, &options);
 }
 
-void wlr_scene_buffer_set_buffer(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_buffer(struct sway_scene_buffer *scene_buffer,
 		struct wlr_buffer *buffer)  {
-	wlr_scene_buffer_set_buffer_with_options(scene_buffer, buffer, NULL);
+	sway_scene_buffer_set_buffer_with_options(scene_buffer, buffer, NULL);
 }
 
-void wlr_scene_buffer_set_opaque_region(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_opaque_region(struct sway_scene_buffer *scene_buffer,
 		const pixman_region32_t *region) {
 	if (pixman_region32_equal(&scene_buffer->opaque_region, region)) {
 		return;
@@ -1363,7 +1363,7 @@ void wlr_scene_buffer_set_opaque_region(struct wlr_scene_buffer *scene_buffer,
 	pixman_region32_copy(&scene_buffer->opaque_region, region);
 
 	int x, y;
-	if (!wlr_scene_node_coords(&scene_buffer->node, &x, &y)) {
+	if (!sway_scene_node_coords(&scene_buffer->node, &x, &y)) {
 		return;
 	}
 
@@ -1374,7 +1374,7 @@ void wlr_scene_buffer_set_opaque_region(struct wlr_scene_buffer *scene_buffer,
 	pixman_region32_fini(&update_region);
 }
 
-void wlr_scene_buffer_set_source_box(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_source_box(struct sway_scene_buffer *scene_buffer,
 		const struct wlr_fbox *box) {
 	if (wlr_fbox_equal(&scene_buffer->src_box, box)) {
 		return;
@@ -1390,7 +1390,7 @@ void wlr_scene_buffer_set_source_box(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_dest_size(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_dest_size(struct sway_scene_buffer *scene_buffer,
 		int width, int height) {
 	if (scene_buffer->dst_width == width && scene_buffer->dst_height == height) {
 		return;
@@ -1402,7 +1402,7 @@ void wlr_scene_buffer_set_dest_size(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_transform(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_transform(struct sway_scene_buffer *scene_buffer,
 		enum wl_output_transform transform) {
 	if (scene_buffer->transform == transform) {
 		return;
@@ -1412,14 +1412,14 @@ void wlr_scene_buffer_set_transform(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_send_frame_done(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_send_frame_done(struct sway_scene_buffer *scene_buffer,
 		struct timespec *now) {
 	if (!pixman_region32_empty(&scene_buffer->node.visible)) {
 		wl_signal_emit_mutable(&scene_buffer->events.frame_done, now);
 	}
 }
 
-void wlr_scene_buffer_set_opacity(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_opacity(struct sway_scene_buffer *scene_buffer,
 		float opacity) {
 	if (scene_buffer->opacity == opacity) {
 		return;
@@ -1430,7 +1430,7 @@ void wlr_scene_buffer_set_opacity(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_filter_mode(struct wlr_scene_buffer *scene_buffer,
+void wlr_scene_buffer_set_filter_mode(struct sway_scene_buffer *scene_buffer,
 		enum wlr_scale_filter_mode filter_mode) {
 	if (scene_buffer->filter_mode == filter_mode) {
 		return;
@@ -1440,7 +1440,7 @@ void wlr_scene_buffer_set_filter_mode(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_corner_radius(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_corner_radius(struct sway_scene_buffer *scene_buffer,
 		int radii, enum corner_location corners) {
 	if (scene_buffer->corner_radius == radii
 			&& scene_buffer->corners == corners) {
@@ -1452,7 +1452,7 @@ void wlr_scene_buffer_set_corner_radius(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_backdrop_blur(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_backdrop_blur(struct sway_scene_buffer *scene_buffer,
 		bool enabled) {
 	if (scene_buffer->backdrop_blur == enabled) {
 		return;
@@ -1461,7 +1461,7 @@ void wlr_scene_buffer_set_backdrop_blur(struct wlr_scene_buffer *scene_buffer,
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_backdrop_blur_optimized(struct wlr_scene_buffer *scene_buffer,
+void sway_scene_buffer_set_backdrop_blur_optimized(struct sway_scene_buffer *scene_buffer,
 		bool enabled) {
 	if (scene_buffer->backdrop_blur_optimized == enabled) {
 		return;
@@ -1470,8 +1470,8 @@ void wlr_scene_buffer_set_backdrop_blur_optimized(struct wlr_scene_buffer *scene
 	scene_node_update(&scene_buffer->node, NULL);
 }
 
-void wlr_scene_buffer_set_backdrop_blur_ignore_transparent(
-		struct wlr_scene_buffer *scene_buffer, bool enabled) {
+void sway_scene_buffer_set_backdrop_blur_ignore_transparent(
+		struct sway_scene_buffer *scene_buffer, bool enabled) {
 	if (scene_buffer->backdrop_blur_ignore_transparent == enabled) {
 		return;
 	}
@@ -1481,7 +1481,7 @@ void wlr_scene_buffer_set_backdrop_blur_ignore_transparent(
 }
 
 static struct wlr_texture *scene_buffer_get_texture(
-		struct wlr_scene_buffer *scene_buffer, struct wlr_renderer *renderer) {
+		struct sway_scene_buffer *scene_buffer, struct wlr_renderer *renderer) {
 	if (scene_buffer->buffer == NULL || scene_buffer->texture != NULL) {
 		return scene_buffer->texture;
 	}
@@ -1502,32 +1502,32 @@ static struct wlr_texture *scene_buffer_get_texture(
 	return texture;
 }
 
-static void scene_node_get_size(struct wlr_scene_node *node,
+static void scene_node_get_size(struct sway_scene_node *node,
 		int *width, int *height) {
 	*width = 0;
 	*height = 0;
 
 	switch (node->type) {
-	case WLR_SCENE_NODE_TREE:
+	case SWAY_SCENE_NODE_TREE:
 		return;
-	case WLR_SCENE_NODE_OPTIMIZED_BLUR:;
-		struct wlr_scene_optimized_blur *scene_blur =
-			wlr_scene_optimized_blur_from_node(node);
+	case SWAY_SCENE_NODE_OPTIMIZED_BLUR:;
+		struct sway_scene_optimized_blur *scene_blur =
+			sway_scene_optimized_blur_from_node(node);
 		*width = scene_blur->width;
 		*height = scene_blur->height;
 		break;
-	case WLR_SCENE_NODE_RECT:;
-		struct wlr_scene_rect *scene_rect = wlr_scene_rect_from_node(node);
+	case SWAY_SCENE_NODE_RECT:;
+		struct sway_scene_rect *scene_rect = sway_scene_rect_from_node(node);
 		*width = scene_rect->width;
 		*height = scene_rect->height;
 		break;
-	case WLR_SCENE_NODE_SHADOW:;
-		struct wlr_scene_shadow *scene_shadow = wlr_scene_shadow_from_node(node);
+	case SWAY_SCENE_NODE_SHADOW:;
+		struct sway_scene_shadow *scene_shadow = sway_scene_shadow_from_node(node);
 		*width = scene_shadow->width;
 		*height = scene_shadow->height;
 		break;
-	case WLR_SCENE_NODE_BUFFER:;
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	case SWAY_SCENE_NODE_BUFFER:;
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 		if (scene_buffer->dst_width > 0 && scene_buffer->dst_height > 0) {
 			*width = scene_buffer->dst_width;
 			*height = scene_buffer->dst_height;
@@ -1540,7 +1540,7 @@ static void scene_node_get_size(struct wlr_scene_node *node,
 	}
 }
 
-void wlr_scene_node_set_enabled(struct wlr_scene_node *node, bool enabled) {
+void sway_scene_node_set_enabled(struct sway_scene_node *node, bool enabled) {
 	if (node->enabled == enabled) {
 		return;
 	}
@@ -1548,7 +1548,7 @@ void wlr_scene_node_set_enabled(struct wlr_scene_node *node, bool enabled) {
 	int x, y;
 	pixman_region32_t visible;
 	pixman_region32_init(&visible);
-	if (wlr_scene_node_coords(node, &x, &y)) {
+	if (sway_scene_node_coords(node, &x, &y)) {
 		scene_node_visibility(node, &visible);
 	}
 
@@ -1557,7 +1557,7 @@ void wlr_scene_node_set_enabled(struct wlr_scene_node *node, bool enabled) {
 	scene_node_update(node, &visible);
 }
 
-void wlr_scene_node_set_position(struct wlr_scene_node *node, int x, int y) {
+void sway_scene_node_set_position(struct sway_scene_node *node, int x, int y) {
 	if (node->x == x && node->y == y) {
 		return;
 	}
@@ -1567,8 +1567,8 @@ void wlr_scene_node_set_position(struct wlr_scene_node *node, int x, int y) {
 	scene_node_update(node, NULL);
 }
 
-void wlr_scene_node_place_above(struct wlr_scene_node *node,
-		struct wlr_scene_node *sibling) {
+void sway_scene_node_place_above(struct sway_scene_node *node,
+		struct sway_scene_node *sibling) {
 	assert(node != sibling);
 	assert(node->parent == sibling->parent);
 
@@ -1581,8 +1581,8 @@ void wlr_scene_node_place_above(struct wlr_scene_node *node,
 	scene_node_update(node, NULL);
 }
 
-void wlr_scene_node_place_below(struct wlr_scene_node *node,
-		struct wlr_scene_node *sibling) {
+void sway_scene_node_place_below(struct sway_scene_node *node,
+		struct sway_scene_node *sibling) {
 	assert(node != sibling);
 	assert(node->parent == sibling->parent);
 
@@ -1595,26 +1595,26 @@ void wlr_scene_node_place_below(struct wlr_scene_node *node,
 	scene_node_update(node, NULL);
 }
 
-void wlr_scene_node_raise_to_top(struct wlr_scene_node *node) {
-	struct wlr_scene_node *current_top = wl_container_of(
+void sway_scene_node_raise_to_top(struct sway_scene_node *node) {
+	struct sway_scene_node *current_top = wl_container_of(
 		node->parent->children.prev, current_top, link);
 	if (node == current_top) {
 		return;
 	}
-	wlr_scene_node_place_above(node, current_top);
+	sway_scene_node_place_above(node, current_top);
 }
 
-void wlr_scene_node_lower_to_bottom(struct wlr_scene_node *node) {
-	struct wlr_scene_node *current_bottom = wl_container_of(
+void sway_scene_node_lower_to_bottom(struct sway_scene_node *node) {
+	struct sway_scene_node *current_bottom = wl_container_of(
 		node->parent->children.next, current_bottom, link);
 	if (node == current_bottom) {
 		return;
 	}
-	wlr_scene_node_place_below(node, current_bottom);
+	sway_scene_node_place_below(node, current_bottom);
 }
 
-void wlr_scene_node_reparent(struct wlr_scene_node *node,
-		struct wlr_scene_tree *new_parent) {
+void sway_scene_node_reparent(struct sway_scene_node *node,
+		struct sway_scene_tree *new_parent) {
 	assert(new_parent != NULL);
 
 	if (node->parent == new_parent) {
@@ -1622,7 +1622,7 @@ void wlr_scene_node_reparent(struct wlr_scene_node *node,
 	}
 
 	/* Ensure that a node cannot become its own ancestor */
-	for (struct wlr_scene_tree *ancestor = new_parent; ancestor != NULL;
+	for (struct sway_scene_tree *ancestor = new_parent; ancestor != NULL;
 			ancestor = ancestor->node.parent) {
 		assert(&ancestor->node != node);
 	}
@@ -1630,7 +1630,7 @@ void wlr_scene_node_reparent(struct wlr_scene_node *node,
 	int x, y;
 	pixman_region32_t visible;
 	pixman_region32_init(&visible);
-	if (wlr_scene_node_coords(node, &x, &y)) {
+	if (sway_scene_node_coords(node, &x, &y)) {
 		scene_node_visibility(node, &visible);
 	}
 
@@ -1640,7 +1640,7 @@ void wlr_scene_node_reparent(struct wlr_scene_node *node,
 	scene_node_update(node, &visible);
 }
 
-bool wlr_scene_node_coords(struct wlr_scene_node *node,
+bool sway_scene_node_coords(struct sway_scene_node *node,
 		int *lx_ptr, int *ly_ptr) {
 	assert(node);
 
@@ -1662,8 +1662,8 @@ bool wlr_scene_node_coords(struct wlr_scene_node *node,
 	return enabled;
 }
 
-static void scene_node_for_each_scene_buffer(struct wlr_scene_node *node,
-		int lx, int ly, wlr_scene_buffer_iterator_func_t user_iterator,
+static void scene_node_for_each_scene_buffer(struct sway_scene_node *node,
+		int lx, int ly, sway_scene_buffer_iterator_func_t user_iterator,
 		void *user_data) {
 	if (!node->enabled) {
 		return;
@@ -1672,45 +1672,45 @@ static void scene_node_for_each_scene_buffer(struct wlr_scene_node *node,
 	lx += node->x;
 	ly += node->y;
 
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	if (node->type == SWAY_SCENE_NODE_BUFFER) {
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 		user_iterator(scene_buffer, lx, ly, user_data);
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+	} else if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			scene_node_for_each_scene_buffer(child, lx, ly, user_iterator, user_data);
 		}
 	}
 }
 
-void wlr_scene_node_for_each_buffer(struct wlr_scene_node *node,
-		wlr_scene_buffer_iterator_func_t user_iterator, void *user_data) {
+void wlr_scene_node_for_each_buffer(struct sway_scene_node *node,
+		sway_scene_buffer_iterator_func_t user_iterator, void *user_data) {
 	scene_node_for_each_scene_buffer(node, 0, 0, user_iterator, user_data);
 }
 
 struct node_at_data {
 	double lx, ly;
 	double rx, ry;
-	struct wlr_scene_node *node;
+	struct sway_scene_node *node;
 };
 
-static bool scene_node_at_iterator(struct wlr_scene_node *node,
+static bool scene_node_at_iterator(struct sway_scene_node *node,
 		int lx, int ly, void *data) {
 	struct node_at_data *at_data = data;
 
 	double rx = at_data->lx - lx;
 	double ry = at_data->ly - ly;
 
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	if (node->type == SWAY_SCENE_NODE_BUFFER) {
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 
 		if (scene_buffer->point_accepts_input &&
 				!scene_buffer->point_accepts_input(scene_buffer, &rx, &ry)) {
 			return false;
 		}
-	} else if (node->type == WLR_SCENE_NODE_RECT) {
-		struct wlr_scene_rect *rect = wlr_scene_rect_from_node(node);
+	} else if (node->type == SWAY_SCENE_NODE_RECT) {
+		struct sway_scene_rect *rect = sway_scene_rect_from_node(node);
 		if (!rect->accepts_input) {
 			return false;
 		} else if (!wlr_box_empty(&rect->clipped_region.area)
@@ -1718,8 +1718,8 @@ static bool scene_node_at_iterator(struct wlr_scene_node *node,
 			// Inside clipped region
 			return false;
 		}
-	} else if (node->type == WLR_SCENE_NODE_SHADOW
-			|| node->type == WLR_SCENE_NODE_OPTIMIZED_BLUR) {
+	} else if (node->type == SWAY_SCENE_NODE_SHADOW
+			|| node->type == SWAY_SCENE_NODE_OPTIMIZED_BLUR) {
 		// Disable interaction
 		return false;
 	}
@@ -1730,7 +1730,7 @@ static bool scene_node_at_iterator(struct wlr_scene_node *node,
 	return true;
 }
 
-struct wlr_scene_node *wlr_scene_node_at(struct wlr_scene_node *node,
+struct sway_scene_node *sway_scene_node_at(struct sway_scene_node *node,
 		double lx, double ly, double *nx, double *ny) {
 	struct wlr_box box = {
 		.x = floor(lx),
@@ -1758,13 +1758,13 @@ struct wlr_scene_node *wlr_scene_node_at(struct wlr_scene_node *node,
 }
 
 struct render_list_entry {
-	struct wlr_scene_node *node;
+	struct sway_scene_node *node;
 	bool highlight_transparent_region;
 	int x, y;
 };
 
 static void scene_entry_render(struct render_list_entry *entry, const struct render_data *data) {
-	struct wlr_scene_node *node = entry->node;
+	struct sway_scene_node *node = entry->node;
 
 	pixman_region32_t render_region;
 	pixman_region32_init(&render_region);
@@ -1796,13 +1796,13 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 	enum wl_output_transform node_transform =
 		wlr_output_transform_compose(WL_OUTPUT_TRANSFORM_NORMAL, data->transform);
 
-	struct wlr_scene *scene = data->output->scene;
+	struct sway_scene *scene = data->output->scene;
 	switch (node->type) {
-	case WLR_SCENE_NODE_TREE:
+	case SWAY_SCENE_NODE_TREE:
 		assert(false);
 		break;
-	case WLR_SCENE_NODE_RECT:;
-		struct wlr_scene_rect *scene_rect = wlr_scene_rect_from_node(node);
+	case SWAY_SCENE_NODE_RECT:;
+		struct sway_scene_rect *scene_rect = sway_scene_rect_from_node(node);
 		enum corner_location rect_corners = scene_rect->corners;
 
 		corner_location_transform(node_transform, &rect_corners);
@@ -1890,8 +1890,8 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 			fx_render_pass_add_rect(data->render_pass, &rect_options);
 		}
 		break;
-	case WLR_SCENE_NODE_OPTIMIZED_BLUR:;
-		struct wlr_scene_optimized_blur *scene_blur = wlr_scene_optimized_blur_from_node(node);
+	case SWAY_SCENE_NODE_OPTIMIZED_BLUR:;
+		struct sway_scene_optimized_blur *scene_blur = sway_scene_optimized_blur_from_node(node);
 		// Re-render the optimized blur buffer when needed
 		if (data->has_blur && is_scene_blur_enabled(&scene->blur_data)
 				&& scene_blur->dirty) {
@@ -1919,8 +1919,8 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 			}
 		}
 		break;
-	case WLR_SCENE_NODE_SHADOW:;
-		struct wlr_scene_shadow *scene_shadow = wlr_scene_shadow_from_node(node);
+	case SWAY_SCENE_NODE_SHADOW:;
+		struct sway_scene_shadow *scene_shadow = sway_scene_shadow_from_node(node);
 
 		struct wlr_box shadow_clipped_region_box = scene_shadow->clipped_region.area;
 		int shadow_clipped_region_corner_radius = scene_shadow->clipped_region.corner_radius;
@@ -1952,8 +1952,8 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 		};
 		fx_render_pass_add_box_shadow(data->render_pass, &shadow_options);
 		break;
-	case WLR_SCENE_NODE_BUFFER:;
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	case SWAY_SCENE_NODE_BUFFER:;
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 		enum corner_location buffer_corners = scene_buffer->corners;
 
 		if (scene_buffer->is_single_pixel_buffer) {
@@ -2051,7 +2051,7 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 
 		fx_render_pass_add_texture(data->render_pass, &tex_options);
 
-		struct wlr_scene_output_sample_event sample_event = {
+		struct sway_scene_output_sample_event sample_event = {
 			.output = data->output,
 			.direct_scanout = false,
 		};
@@ -2072,14 +2072,14 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 
 static void scene_handle_linux_dmabuf_v1_destroy(struct wl_listener *listener,
 		void *data) {
-	struct wlr_scene *scene =
+	struct sway_scene *scene =
 		wl_container_of(listener, scene, linux_dmabuf_v1_destroy);
 	wl_list_remove(&scene->linux_dmabuf_v1_destroy.link);
 	wl_list_init(&scene->linux_dmabuf_v1_destroy.link);
 	scene->linux_dmabuf_v1 = NULL;
 }
 
-void wlr_scene_set_linux_dmabuf_v1(struct wlr_scene *scene,
+void sway_scene_set_linux_dmabuf_v1(struct sway_scene *scene,
 		struct wlr_linux_dmabuf_v1 *linux_dmabuf_v1) {
 	assert(scene->linux_dmabuf_v1 == NULL);
 	scene->linux_dmabuf_v1 = linux_dmabuf_v1;
@@ -2090,9 +2090,9 @@ void wlr_scene_set_linux_dmabuf_v1(struct wlr_scene *scene,
 static void scene_handle_gamma_control_manager_v1_set_gamma(struct wl_listener *listener,
 		void *data) {
 	const struct wlr_gamma_control_manager_v1_set_gamma_event *event = data;
-	struct wlr_scene *scene =
+	struct sway_scene *scene =
 		wl_container_of(listener, scene, gamma_control_manager_v1_set_gamma);
-	struct wlr_scene_output *output = wlr_scene_get_scene_output(scene, event->output);
+	struct sway_scene_output *output = sway_scene_get_scene_output(scene, event->output);
 	if (!output) {
 		// this scene might not own this output.
 		return;
@@ -2105,7 +2105,7 @@ static void scene_handle_gamma_control_manager_v1_set_gamma(struct wl_listener *
 
 static void scene_handle_gamma_control_manager_v1_destroy(struct wl_listener *listener,
 		void *data) {
-	struct wlr_scene *scene =
+	struct sway_scene *scene =
 		wl_container_of(listener, scene, gamma_control_manager_v1_destroy);
 	wl_list_remove(&scene->gamma_control_manager_v1_destroy.link);
 	wl_list_init(&scene->gamma_control_manager_v1_destroy.link);
@@ -2113,14 +2113,14 @@ static void scene_handle_gamma_control_manager_v1_destroy(struct wl_listener *li
 	wl_list_init(&scene->gamma_control_manager_v1_set_gamma.link);
 	scene->gamma_control_manager_v1 = NULL;
 
-	struct wlr_scene_output *output;
+	struct sway_scene_output *output;
 	wl_list_for_each(output, &scene->outputs, link) {
 		output->gamma_lut_changed = false;
 		output->gamma_lut = NULL;
 	}
 }
 
-void wlr_scene_set_gamma_control_manager_v1(struct wlr_scene *scene,
+void sway_scene_set_gamma_control_manager_v1(struct sway_scene *scene,
 		struct wlr_gamma_control_manager_v1 *gamma_control) {
 	assert(scene->gamma_control_manager_v1 == NULL);
 	scene->gamma_control_manager_v1 = gamma_control;
@@ -2134,9 +2134,9 @@ void wlr_scene_set_gamma_control_manager_v1(struct wlr_scene *scene,
 }
 
 static void scene_output_handle_destroy(struct wlr_addon *addon) {
-	struct wlr_scene_output *scene_output =
+	struct sway_scene_output *scene_output =
 		wl_container_of(addon, scene_output, addon);
-	wlr_scene_output_destroy(scene_output);
+	sway_scene_output_destroy(scene_output);
 }
 
 static const struct wlr_addon_interface output_addon_impl = {
@@ -2144,12 +2144,12 @@ static const struct wlr_addon_interface output_addon_impl = {
 	.destroy = scene_output_handle_destroy,
 };
 
-static void scene_node_output_update(struct wlr_scene_node *node,
-		struct wl_list *outputs, struct wlr_scene_output *ignore,
-		struct wlr_scene_output *force) {
-	if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+static void scene_node_output_update(struct sway_scene_node *node,
+		struct wl_list *outputs, struct sway_scene_output *ignore,
+		struct sway_scene_output *force) {
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			scene_node_output_update(child, outputs, ignore, force);
 		}
@@ -2159,7 +2159,7 @@ static void scene_node_output_update(struct wlr_scene_node *node,
 	update_node_update_outputs(node, outputs, ignore, force);
 }
 
-static void scene_output_update_geometry(struct wlr_scene_output *scene_output,
+static void scene_output_update_geometry(struct sway_scene_output *scene_output,
 		bool force_update) {
 	scene_output_damage_whole(scene_output);
 
@@ -2168,7 +2168,7 @@ static void scene_output_update_geometry(struct wlr_scene_output *scene_output,
 }
 
 static void scene_output_handle_commit(struct wl_listener *listener, void *data) {
-	struct wlr_scene_output *scene_output = wl_container_of(listener,
+	struct sway_scene_output *scene_output = wl_container_of(listener,
 		scene_output, output_commit);
 	struct wlr_output_event_commit *event = data;
 	const struct wlr_output_state *state = event->state;
@@ -2196,7 +2196,7 @@ static void scene_output_handle_commit(struct wl_listener *listener, void *data)
 		scene_output_update_geometry(scene_output, force_update);
 	}
 
-	if (scene_output->scene->debug_damage_option == WLR_SCENE_DEBUG_DAMAGE_HIGHLIGHT &&
+	if (scene_output->scene->debug_damage_option == SWAY_SCENE_DEBUG_DAMAGE_HIGHLIGHT &&
 			!wl_list_empty(&scene_output->damage_highlight_regions)) {
 		wlr_output_schedule_frame(scene_output->output);
 	}
@@ -2210,7 +2210,7 @@ static void scene_output_handle_commit(struct wl_listener *listener, void *data)
 }
 
 static void scene_output_handle_damage(struct wl_listener *listener, void *data) {
-	struct wlr_scene_output *scene_output = wl_container_of(listener,
+	struct sway_scene_output *scene_output = wl_container_of(listener,
 		scene_output, output_damage);
 	struct wlr_output *output = scene_output->output;
 	struct wlr_output_event_damage *event = data;
@@ -2228,14 +2228,14 @@ static void scene_output_handle_damage(struct wl_listener *listener, void *data)
 }
 
 static void scene_output_handle_needs_frame(struct wl_listener *listener, void *data) {
-	struct wlr_scene_output *scene_output = wl_container_of(listener,
+	struct sway_scene_output *scene_output = wl_container_of(listener,
 		scene_output, output_needs_frame);
 	wlr_output_schedule_frame(scene_output->output);
 }
 
-struct wlr_scene_output *wlr_scene_output_create(struct wlr_scene *scene,
+struct sway_scene_output *sway_scene_output_create(struct sway_scene *scene,
 		struct wlr_output *output) {
-	struct wlr_scene_output *scene_output = calloc(1, sizeof(*scene_output));
+	struct sway_scene_output *scene_output = calloc(1, sizeof(*scene_output));
 	if (scene_output == NULL) {
 		return NULL;
 	}
@@ -2251,7 +2251,7 @@ struct wlr_scene_output *wlr_scene_output_create(struct wlr_scene *scene,
 	int prev_output_index = -1;
 	struct wl_list *prev_output_link = &scene->outputs;
 
-	struct wlr_scene_output *current_output;
+	struct sway_scene_output *current_output;
 	wl_list_for_each(current_output, &scene->outputs, link) {
 		if (prev_output_index + 1 != current_output->index) {
 			break;
@@ -2296,7 +2296,7 @@ static void highlight_region_destroy(struct highlight_region *damage) {
 	free(damage);
 }
 
-void wlr_scene_output_destroy(struct wlr_scene_output *scene_output) {
+void sway_scene_output_destroy(struct sway_scene_output *scene_output) {
 	if (scene_output == NULL) {
 		return;
 	}
@@ -2325,19 +2325,19 @@ void wlr_scene_output_destroy(struct wlr_scene_output *scene_output) {
 	free(scene_output);
 }
 
-struct wlr_scene_output *wlr_scene_get_scene_output(struct wlr_scene *scene,
+struct sway_scene_output *sway_scene_get_scene_output(struct sway_scene *scene,
 		struct wlr_output *output) {
 	struct wlr_addon *addon =
 		wlr_addon_find(&output->addons, scene, &output_addon_impl);
 	if (addon == NULL) {
 		return NULL;
 	}
-	struct wlr_scene_output *scene_output =
+	struct sway_scene_output *scene_output =
 		wl_container_of(addon, scene_output, addon);
 	return scene_output;
 }
 
-void wlr_scene_output_set_position(struct wlr_scene_output *scene_output,
+void sway_scene_output_set_position(struct sway_scene_output *scene_output,
 		int lx, int ly) {
 	if (scene_output->x == lx && scene_output->y == ly) {
 		return;
@@ -2349,21 +2349,21 @@ void wlr_scene_output_set_position(struct wlr_scene_output *scene_output,
 	scene_output_update_geometry(scene_output, false);
 }
 
-static bool scene_node_invisible(struct wlr_scene_node *node) {
-	if (node->type == WLR_SCENE_NODE_TREE) {
+static bool scene_node_invisible(struct sway_scene_node *node) {
+	if (node->type == SWAY_SCENE_NODE_TREE) {
 		return true;
-	} else if (node->type == WLR_SCENE_NODE_RECT) {
-		struct wlr_scene_rect *rect = wlr_scene_rect_from_node(node);
+	} else if (node->type == SWAY_SCENE_NODE_RECT) {
+		struct sway_scene_rect *rect = sway_scene_rect_from_node(node);
 
 		return rect->color[3] == 0.f;
-	} else if (node->type == WLR_SCENE_NODE_SHADOW) {
-		struct wlr_scene_shadow *shadow = wlr_scene_shadow_from_node(node);
+	} else if (node->type == SWAY_SCENE_NODE_SHADOW) {
+		struct sway_scene_shadow *shadow = sway_scene_shadow_from_node(node);
 
 		return shadow->color[3] == 0.f;
-	} else if (node->type == WLR_SCENE_NODE_OPTIMIZED_BLUR) {
+	} else if (node->type == SWAY_SCENE_NODE_OPTIMIZED_BLUR) {
 		return false;
-	} else if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
+	} else if (node->type == SWAY_SCENE_NODE_BUFFER) {
+		struct sway_scene_buffer *buffer = sway_scene_buffer_from_node(node);
 
 		return buffer->buffer == NULL && buffer->texture == NULL;
 	}
@@ -2379,7 +2379,7 @@ struct render_list_constructor_data {
 	bool fractional_scale;
 };
 
-static bool scene_buffer_is_black_opaque(struct wlr_scene_buffer *scene_buffer) {
+static bool scene_buffer_is_black_opaque(struct sway_scene_buffer *scene_buffer) {
 	return scene_buffer->is_single_pixel_buffer &&
 		scene_buffer->single_pixel_buffer_color[0] == 0 &&
 		scene_buffer->single_pixel_buffer_color[1] == 0 &&
@@ -2388,7 +2388,7 @@ static bool scene_buffer_is_black_opaque(struct wlr_scene_buffer *scene_buffer) 
 		scene_buffer->opacity == 1.0;
 }
 
-static bool construct_render_list_iterator(struct wlr_scene_node *node,
+static bool construct_render_list_iterator(struct sway_scene_node *node,
 		int lx, int ly, void *_data) {
 	struct render_list_constructor_data *data = _data;
 
@@ -2400,9 +2400,9 @@ static bool construct_render_list_iterator(struct wlr_scene_node *node,
 	// black rect, we can ignore rendering everything under the rect, and
 	// unless fractional scale is used even the rect itself (to avoid running
 	// into issues regarding damage region expansion).
-	if (node->type == WLR_SCENE_NODE_RECT && data->calculate_visibility &&
+	if (node->type == SWAY_SCENE_NODE_RECT && data->calculate_visibility &&
 			(!data->fractional_scale || data->render_list->size == 0)) {
-		struct wlr_scene_rect *rect = wlr_scene_rect_from_node(node);
+		struct sway_scene_rect *rect = sway_scene_rect_from_node(node);
 		float *black = (float[4]){ 0.f, 0.f, 0.f, 1.f };
 
 		if (memcmp(rect->color, black, sizeof(float) * 4) == 0) {
@@ -2411,9 +2411,9 @@ static bool construct_render_list_iterator(struct wlr_scene_node *node,
 	}
 
 	// Apply the same special-case to black opaque single-pixel buffers
-	if (node->type == WLR_SCENE_NODE_BUFFER && data->calculate_visibility &&
+	if (node->type == SWAY_SCENE_NODE_BUFFER && data->calculate_visibility &&
 			(!data->fractional_scale || data->render_list->size == 0)) {
-		struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+		struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 
 		if (scene_buffer_is_black_opaque(scene_buffer)) {
 			return false;
@@ -2447,14 +2447,14 @@ static bool construct_render_list_iterator(struct wlr_scene_node *node,
 	return false;
 }
 
-static void scene_buffer_send_dmabuf_feedback(const struct wlr_scene *scene,
-		struct wlr_scene_buffer *scene_buffer,
+static void scene_buffer_send_dmabuf_feedback(const struct sway_scene *scene,
+		struct sway_scene_buffer *scene_buffer,
 		const struct wlr_linux_dmabuf_feedback_v1_init_options *options) {
 	if (!scene->linux_dmabuf_v1) {
 		return;
 	}
 
-	struct wlr_scene_surface *surface = wlr_scene_surface_try_from_buffer(scene_buffer);
+	struct sway_scene_surface *surface = sway_scene_surface_try_from_buffer(scene_buffer);
 	if (!surface) {
 		return;
 	}
@@ -2494,14 +2494,14 @@ enum scene_direct_scanout_result {
 static enum scene_direct_scanout_result scene_entry_try_direct_scanout(
 		struct render_list_entry *entry, struct wlr_output_state *state,
 		const struct render_data *data) {
-	struct wlr_scene_output *scene_output = data->output;
-	struct wlr_scene_node *node = entry->node;
+	struct sway_scene_output *scene_output = data->output;
+	struct sway_scene_node *node = entry->node;
 
 	if (!scene_output->scene->direct_scanout) {
 		return SCANOUT_INELIGIBLE;
 	}
 
-	if (node->type != WLR_SCENE_NODE_BUFFER) {
+	if (node->type != SWAY_SCENE_NODE_BUFFER) {
 		return SCANOUT_INELIGIBLE;
 	}
 
@@ -2516,7 +2516,7 @@ static enum scene_direct_scanout_result scene_entry_try_direct_scanout(
 		return SCANOUT_INELIGIBLE;
 	}
 
-	struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
+	struct sway_scene_buffer *buffer = sway_scene_buffer_from_node(node);
 	if (buffer->buffer == NULL) {
 		return SCANOUT_INELIGIBLE;
 	}
@@ -2583,7 +2583,7 @@ static enum scene_direct_scanout_result scene_entry_try_direct_scanout(
 	wlr_output_state_copy(state, &pending);
 	wlr_output_state_finish(&pending);
 
-	struct wlr_scene_output_sample_event sample_event = {
+	struct sway_scene_output_sample_event sample_event = {
 		.output = scene_output,
 		.direct_scanout = true,
 	};
@@ -2591,16 +2591,16 @@ static enum scene_direct_scanout_result scene_entry_try_direct_scanout(
 	return SCANOUT_SUCCESS;
 }
 
-bool wlr_scene_output_needs_frame(struct wlr_scene_output *scene_output) {
+bool wlr_scene_output_needs_frame(struct sway_scene_output *scene_output) {
 	return scene_output->output->needs_frame ||
 		!pixman_region32_empty(&scene_output->pending_commit_damage) ||
 		scene_output->gamma_lut_changed;
 }
 
-static void apply_blur_region(struct wlr_scene_node *node,
-		struct wlr_scene_output *scene_output, pixman_region32_t *blur_region) {
+static void apply_blur_region(struct sway_scene_node *node,
+		struct sway_scene_output *scene_output, pixman_region32_t *blur_region) {
 	int x, y;
-	wlr_scene_node_coords(node, &x, &y);
+	sway_scene_node_coords(node, &x, &y);
 
 	pixman_region32_t opaque_region;
 	pixman_region32_init(&opaque_region);
@@ -2633,7 +2633,7 @@ static void apply_blur_region(struct wlr_scene_node *node,
 }
 
 static bool scene_output_has_blur(int list_len,
-		struct render_list_entry *list_data, struct wlr_scene_output *scene_output,
+		struct render_list_entry *list_data, struct sway_scene_output *scene_output,
 		pixman_region32_t *blur_region) {
 	if (scene_output->scene->blur_data.radius <= 0 ||
 			scene_output->scene->blur_data.num_passes <= 0) {
@@ -2641,22 +2641,22 @@ static bool scene_output_has_blur(int list_len,
 	}
 
 	for (int i = list_len - 1; i >= 0; i--) {
-		struct wlr_scene_node *node = list_data[i].node;
+		struct sway_scene_node *node = list_data[i].node;
 		switch (node->type) {
-		case WLR_SCENE_NODE_BUFFER:;
-			struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+		case SWAY_SCENE_NODE_BUFFER:;
+			struct sway_scene_buffer *scene_buffer = sway_scene_buffer_from_node(node);
 			if (scene_buffer->backdrop_blur) {
 				apply_blur_region(node, scene_output, blur_region);
 			}
 			break;
-		case WLR_SCENE_NODE_RECT:;
-			struct wlr_scene_rect *scene_rect = wlr_scene_rect_from_node(node);
+		case SWAY_SCENE_NODE_RECT:;
+			struct sway_scene_rect *scene_rect = sway_scene_rect_from_node(node);
 			if (scene_rect->backdrop_blur) {
 				apply_blur_region(node, scene_output, blur_region);
 			}
 			break;
-		case WLR_SCENE_NODE_OPTIMIZED_BLUR:;
-			struct wlr_scene_optimized_blur *scene_blur = wlr_scene_optimized_blur_from_node(node);
+		case SWAY_SCENE_NODE_OPTIMIZED_BLUR:;
+			struct sway_scene_optimized_blur *scene_blur = sway_scene_optimized_blur_from_node(node);
 			if (scene_blur->dirty) {
 				apply_blur_region(node, scene_output, blur_region);
 			}
@@ -2669,7 +2669,7 @@ static bool scene_output_has_blur(int list_len,
 	return !pixman_region32_empty(blur_region);
 }
 
-bool wlr_scene_output_commit(struct wlr_scene_output *scene_output,
+bool sway_scene_output_commit(struct sway_scene_output *scene_output,
 		const struct wlr_scene_output_state_options *options) {
 	if (!wlr_scene_output_needs_frame(scene_output)) {
 		return true;
@@ -2678,7 +2678,7 @@ bool wlr_scene_output_commit(struct wlr_scene_output *scene_output,
 	bool ok = false;
 	struct wlr_output_state state;
 	wlr_output_state_init(&state);
-	if (!wlr_scene_output_build_state(scene_output, &state, options)) {
+	if (!sway_scene_output_build_state(scene_output, &state, options)) {
 		goto out;
 	}
 
@@ -2692,7 +2692,7 @@ out:
 	return ok;
 }
 
-static void scene_output_state_attempt_gamma(struct wlr_scene_output *scene_output,
+static void scene_output_state_attempt_gamma(struct sway_scene_output *scene_output,
 		struct wlr_output_state *state) {
 	if (!scene_output->gamma_lut_changed) {
 		return;
@@ -2721,7 +2721,7 @@ static void scene_output_state_attempt_gamma(struct wlr_scene_output *scene_outp
 	wlr_output_state_finish(&gamma_pending);
 }
 
-bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
+bool sway_scene_output_build_state(struct sway_scene_output *scene_output,
 		struct wlr_output_state *state, const struct wlr_scene_output_state_options *options) {
 	struct wlr_scene_output_state_options default_options = {0};
 	if (!options) {
@@ -2731,7 +2731,7 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
 	struct timespec start_time;
 	if (timer) {
 		clock_gettime(CLOCK_MONOTONIC, &start_time);
-		wlr_scene_timer_finish(timer);
+		sway_scene_timer_finish(timer);
 		*timer = (struct wlr_scene_timer){0};
 	}
 
@@ -2741,7 +2741,7 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
 	}
 
 	struct wlr_output *output = scene_output->output;
-	enum wlr_scene_debug_damage_option debug_damage =
+	enum sway_scene_debug_damage_option debug_damage =
 		scene_output->scene->debug_damage_option;
 
 	struct render_data render_data = {
@@ -2796,12 +2796,12 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
 	struct render_list_entry *list_data = list_con.render_list->data;
 	int list_len = list_con.render_list->size / sizeof(*list_data);
 
-	if (debug_damage == WLR_SCENE_DEBUG_DAMAGE_RERENDER) {
+	if (debug_damage == SWAY_SCENE_DEBUG_DAMAGE_RERENDER) {
 		scene_output_damage_whole(scene_output);
 	}
 
 	struct timespec now;
-	if (debug_damage == WLR_SCENE_DEBUG_DAMAGE_HIGHLIGHT) {
+	if (debug_damage == SWAY_SCENE_DEBUG_DAMAGE_HIGHLIGHT) {
 		struct wl_list *regions = &scene_output->damage_highlight_regions;
 		clock_gettime(CLOCK_MONOTONIC, &now);
 
@@ -2846,7 +2846,7 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
 	// - Damage highlight debugging is not enabled
 	enum scene_direct_scanout_result scanout_result = SCANOUT_INELIGIBLE;
 	if (options->color_transform == NULL && list_len == 1
-			&& debug_damage != WLR_SCENE_DEBUG_DAMAGE_HIGHLIGHT) {
+			&& debug_damage != SWAY_SCENE_DEBUG_DAMAGE_HIGHLIGHT) {
 		scanout_result = scene_entry_try_direct_scanout(&list_data[0], state, &render_data);
 	}
 
@@ -3025,8 +3025,8 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
 		struct render_list_entry *entry = &list_data[i];
 		scene_entry_render(entry, &render_data);
 
-		if (entry->node->type == WLR_SCENE_NODE_BUFFER) {
-			struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(entry->node);
+		if (entry->node->type == SWAY_SCENE_NODE_BUFFER) {
+			struct sway_scene_buffer *buffer = sway_scene_buffer_from_node(entry->node);
 
 			// Direct scanout counts up to DMABUF_FEEDBACK_DEBOUNCE_FRAMES before sending new dmabuf
 			// feedback, and on composition we wait until it hits zero again. If we knew that an
@@ -3049,7 +3049,7 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
 				render_pass->buffer, effect_fbos->blur_saved_pixels_buffer);
 	}
 
-	if (debug_damage == WLR_SCENE_DEBUG_DAMAGE_HIGHLIGHT) {
+	if (debug_damage == SWAY_SCENE_DEBUG_DAMAGE_HIGHLIGHT) {
 		struct highlight_region *damage;
 		wl_list_for_each(damage, &scene_output->damage_highlight_regions, link) {
 			struct timespec time_diff;
@@ -3099,43 +3099,43 @@ int64_t wlr_scene_timer_get_duration_ns(struct wlr_scene_timer *timer) {
 	return render != -1 ? pre_render + render : -1;
 }
 
-void wlr_scene_timer_finish(struct wlr_scene_timer *timer) {
+void sway_scene_timer_finish(struct wlr_scene_timer *timer) {
 	if (timer->render_timer) {
 		wlr_render_timer_destroy(timer->render_timer);
 	}
 }
 
-static void scene_node_send_frame_done(struct wlr_scene_node *node,
-		struct wlr_scene_output *scene_output, struct timespec *now) {
+static void scene_node_send_frame_done(struct sway_scene_node *node,
+		struct sway_scene_output *scene_output, struct timespec *now) {
 	if (!node->enabled) {
 		return;
 	}
 
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *scene_buffer =
-			wlr_scene_buffer_from_node(node);
+	if (node->type == SWAY_SCENE_NODE_BUFFER) {
+		struct sway_scene_buffer *scene_buffer =
+			sway_scene_buffer_from_node(node);
 
 		if (scene_buffer->primary_output == scene_output) {
-			wlr_scene_buffer_send_frame_done(scene_buffer, now);
+			sway_scene_buffer_send_frame_done(scene_buffer, now);
 		}
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+	} else if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			scene_node_send_frame_done(child, scene_output, now);
 		}
 	}
 }
 
-void wlr_scene_output_send_frame_done(struct wlr_scene_output *scene_output,
+void sway_scene_output_send_frame_done(struct sway_scene_output *scene_output,
 		struct timespec *now) {
 	scene_node_send_frame_done(&scene_output->scene->tree.node,
 		scene_output, now);
 }
 
 static void scene_output_for_each_scene_buffer(const struct wlr_box *output_box,
-		struct wlr_scene_node *node, int lx, int ly,
-		wlr_scene_buffer_iterator_func_t user_iterator, void *user_data) {
+		struct sway_scene_node *node, int lx, int ly,
+		sway_scene_buffer_iterator_func_t user_iterator, void *user_data) {
 	if (!node->enabled) {
 		return;
 	}
@@ -3143,19 +3143,19 @@ static void scene_output_for_each_scene_buffer(const struct wlr_box *output_box,
 	lx += node->x;
 	ly += node->y;
 
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
+	if (node->type == SWAY_SCENE_NODE_BUFFER) {
 		struct wlr_box node_box = { .x = lx, .y = ly };
 		scene_node_get_size(node, &node_box.width, &node_box.height);
 
 		struct wlr_box intersection;
 		if (wlr_box_intersection(&intersection, output_box, &node_box)) {
-			struct wlr_scene_buffer *scene_buffer =
-				wlr_scene_buffer_from_node(node);
+			struct sway_scene_buffer *scene_buffer =
+				sway_scene_buffer_from_node(node);
 			user_iterator(scene_buffer, lx, ly, user_data);
 		}
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-		struct wlr_scene_node *child;
+	} else if (node->type == SWAY_SCENE_NODE_TREE) {
+		struct sway_scene_tree *scene_tree = sway_scene_tree_from_node(node);
+		struct sway_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
 			scene_output_for_each_scene_buffer(output_box, child, lx, ly,
 				user_iterator, user_data);
@@ -3163,11 +3163,32 @@ static void scene_output_for_each_scene_buffer(const struct wlr_box *output_box,
 	}
 }
 
-void wlr_scene_output_for_each_buffer(struct wlr_scene_output *scene_output,
-		wlr_scene_buffer_iterator_func_t iterator, void *user_data) {
+void sway_scene_output_for_each_buffer(struct sway_scene_output *scene_output,
+		sway_scene_buffer_iterator_func_t iterator, void *user_data) {
 	struct wlr_box box = { .x = scene_output->x, .y = scene_output->y };
 	wlr_output_effective_resolution(scene_output->output,
 		&box.width, &box.height);
 	scene_output_for_each_scene_buffer(&box, &scene_output->scene->tree.node, 0, 0,
 		iterator, user_data);
 }
+
+// Scroll-specific function
+float scene_node_get_parent_content_scale(struct sway_scene_node *node) {
+	struct sway_scene_tree *tree;
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		tree = sway_scene_tree_from_node(node);
+	}
+
+// Scroll-specific function
+float scene_node_get_parent_scale(struct sway_scene_node *node) {
+	struct sway_scene_tree *tree;
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		tree = sway_scene_tree_from_node(node);
+	}
+
+// Scroll-specific function
+static struct sway_workspace *scene_node_get_workspace(struct sway_scene_node *node) {
+	struct sway_scene_tree *tree;
+	if (node->type == SWAY_SCENE_NODE_TREE) {
+		tree = sway_scene_tree_from_node(node);
+	}
